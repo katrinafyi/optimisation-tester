@@ -1,5 +1,7 @@
 from typing import * 
 
+from functools import lru_cache
+
 import numpy as np
 import scipy as sp 
 import scipy.sparse as sps 
@@ -24,10 +26,31 @@ def parabola(order: int, x: np.array):
         np.diag(np.multiply(order*(order-1), np.power(x, order-2)).flatten())
     )
 
+def exp_x_squared(x):
+    return (
+        -np.exp(-np.sum(np.power(x, 2))),
+        2 * x * np.exp(-(np.power(x, 2))),
+        None,
+    )
+
+def rosenbrock(x_tup):
+    a = 1
+    b = 100 
+    x, y = x_tup
+    return (
+        (a-x)**2 + b*(y - x**2)**2,
+        np.array((400*x**3 - 400*x*y + 2*x - 2, 200*(y-x**2))),
+        np.array((
+            (1200*x**2 - 400*y + 2, -400*x),
+            (-400*x, 200)
+        ))
+    )
+
 def gradient_descent(x, fun, data):
-    alpha = 0.1
+    alpha = 0.001
     fx, gx = fun(x)[:2]
     return x - alpha * gx, data
+
 
 def nesterov_agd(x, fun, data):
     # https://blogs.princeton.edu/imabandit/2013/04/01/acceleratedgradientdescent/
@@ -66,7 +89,7 @@ def test_optimiser(obj_fun, opt_fun, x0):
     x = x0
     data = {}
     print('starting at', x0.tolist())
-    for i in range(100):
+    for i in range(200):
         prev_x = x
         x, data = opt_fun(x, obj_fun, data)
         fx, gx, Hx = obj_fun(x)
@@ -81,10 +104,14 @@ def test_optimiser(obj_fun, opt_fun, x0):
 
 
 if __name__ == "__main__":
-    obj_fun_lambda = lambda x: parabola(2, x+100000)
-    start_pos = np.array((100, 4000))
+    # obj_fun_lambda = lambda x: parabola(2, x+100000)
+    obj_fun_lambda = rosenbrock
+    start_pos = np.array((2, 1))
     for opt in (gradient_descent, nesterov_agd, newton_matinv, newton_cg):
         print('optimiser:', opt)
         test_optimiser(obj_fun_lambda, opt, start_pos)
         print()
         print()
+
+    # spam_data = np.genfromtxt('spambase.csv', delimiter=',')
+    # print(spam_data)
