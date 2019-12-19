@@ -26,22 +26,26 @@ def gradient_descent(x, fun, data):
     return x - alpha * gx, data
 
 def nesterov_agd(x, fun, data):
-    alpha = 0.1 
-    beta = 0.9
+    # https://blogs.princeton.edu/imabandit/2013/04/01/acceleratedgradientdescent/
+    beta = 4
 
-    w_t = x
-    m_t_minus_1 = data.get('m_t_minus_1', np.zeros_like(x))
+    # x_s = data.get('x_s', np.zeros_like(x))
+    x_s = x
+    y_s = data.get('y_s', np.zeros_like(x))
+    lambda_s_minus_1 = data.get('lambda_s_minus_1', 0)
 
-    w_star = w_t - alpha * m_t_minus_1
-    g_star = fun(w_star)[1]
+    lambda_s = (1 + np.sqrt(1 + 4 * lambda_s_minus_1**2)) / 2
+    lambda_s_plus_1 = (1 + np.sqrt(1 + 4 * lambda_s**2)) / 2
 
-    m_t = beta * m_t_minus_1 + (1-beta) * g_star 
+    gamma_s = (1-lambda_s) / lambda_s_plus_1
 
-    w_t_plus_1 = w_t - alpha * m_t
+    y_s_plus_1 = x_s - 1/beta * fun(x_s)[1]
+    x_s_plus_1 = (1-gamma_s) * y_s_plus_1 + gamma_s * y_s
+    
+    data['y_s'] = y_s_plus_1
+    data['lambda_s_minus_1'] = lambda_s
 
-    data['m_t_minus_1'] = m_t
-
-    return w_t_plus_1, data
+    return x_s_plus_1, data
 
 def newton_matinv(x, fun, data):
     # print(Hx)
@@ -54,23 +58,26 @@ def newton_cg(x, fx, gx, Hx, data):
 def test_optimiser(obj_fun, opt_fun, x0):
     x = x0
     data = {}
+    print('starting at', x0.tolist())
     for i in range(100):
         prev_x = x
         x, data = opt_fun(x, obj_fun, data)
-        
         fx, gx, Hx = obj_fun(x)
+
         print(i, fx, (gx).tolist(), (x).tolist())
         if np.any(np.isnan(x)):
             print('error: NaN')
             break
-        if np.allclose(x, prev_x, atol=0.0000000001):
+        if np.allclose(x, prev_x, atol=0):
             print('converged???')
             break
 
 
 if __name__ == "__main__":
-    test_optimiser(lambda x: parabola(2, x+1000), nesterov_agd, np.zeros((2,1)))
-    print()
-    print()
-    print()
-    test_optimiser(lambda x: parabola(2, x+1000), gradient_descent, np.zeros((2,1)))
+    obj_fun_lambda = lambda x: parabola(2, x+100000)
+    start_pos = np.array((100, 4000))
+    for opt in (gradient_descent, nesterov_agd, newton_matinv):
+        print('optimiser:', opt)
+        test_optimiser(obj_fun_lambda, opt, start_pos)
+        print()
+        print()
