@@ -1,6 +1,10 @@
 from typing import * 
 
 import numpy as np
+import scipy as sp 
+import scipy.sparse as sps 
+import scipy.sparse.linalg as spsl 
+
 
 SecondOrderReturn = Tuple[float, np.array, np.array]
 
@@ -52,8 +56,11 @@ def newton_matinv(x, fun, data):
     _, gx, Hx = fun(x)[:3]
     return x - np.linalg.inv(Hx) @ gx, data
 
-def newton_cg(x, fx, gx, Hx, data):
-    pass
+def newton_cg(x, fun, data):
+    _, gx, H = fun(x)[:3]
+    # solve Hp = -g
+    p, status = spsl.cg(H, gx)
+    return x - p, data
 
 def test_optimiser(obj_fun, opt_fun, x0):
     x = x0
@@ -64,11 +71,11 @@ def test_optimiser(obj_fun, opt_fun, x0):
         x, data = opt_fun(x, obj_fun, data)
         fx, gx, Hx = obj_fun(x)
 
-        print(i, fx, (gx).tolist(), (x).tolist())
+        print(str(i).ljust(3), fx, (gx).tolist(), (x).tolist())
         if np.any(np.isnan(x)):
             print('error: NaN')
             break
-        if np.allclose(x, prev_x, atol=0):
+        if np.linalg.norm(gx) < 10e-6:
             print('converged???')
             break
 
@@ -76,7 +83,7 @@ def test_optimiser(obj_fun, opt_fun, x0):
 if __name__ == "__main__":
     obj_fun_lambda = lambda x: parabola(2, x+100000)
     start_pos = np.array((100, 4000))
-    for opt in (gradient_descent, nesterov_agd, newton_matinv):
+    for opt in (gradient_descent, nesterov_agd, newton_matinv, newton_cg):
         print('optimiser:', opt)
         test_optimiser(obj_fun_lambda, opt, start_pos)
         print()
