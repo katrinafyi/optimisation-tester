@@ -2,7 +2,9 @@ from typing import *
 
 import numpy as np
 
-def least_squares(A: np.ndarray, b: np.array, x: np.array):
+SecondOrderReturn = Tuple[float, np.array, np.array]
+
+def least_squares(A: np.array, b: np.array, x: np.array):
     ATA = A.transpose() @ A
     return (
         np.sum(np.square(A @ x - b))/2, 
@@ -18,9 +20,19 @@ def parabola(order: int, x: np.array):
         np.diag(np.multiply(order*(order-1), np.power(x, order-2)))
     )
 
-def test_fun_with_method(obj_fun, opt_fun):
-    pass
+def gradient_descent(obj_fun: Callable[[np.array], ], x):
+    alpha = 0.1
+    fx, gx = obj_fun(x)[:2]
+    return x - alpha * gx, fx, gx
+
+def test_optimiser(obj_fun, opt_fun, x0):
+    x = x0
+    for i in range(100):
+        x, fx, gx = opt_fun(obj_fun, x)
+        print(i, fx)
+        print(gx)
+        print(x)
+
 
 if __name__ == "__main__":
-    for x in (parabola(2, [2, 1])):
-        print(x)
+    test_optimiser(lambda x: parabola(2, x+10), gradient_descent, np.zeros((2,1)))
