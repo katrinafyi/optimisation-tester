@@ -7,6 +7,9 @@ import scipy as sp
 import scipy.sparse as sps 
 import scipy.sparse.linalg as spsl 
 
+# from sympy import lambdify
+import matplotlib.pyplot as plt
+
 
 SecondOrderReturn = Tuple[float, np.array, np.array]
 
@@ -33,10 +36,15 @@ def exp_x_squared(x):
         None,
     )
 
-def rosenbrock(x_tup):
+def rosenbrock(x_tup, nargout=3):
     a = 1
     b = 100 
-    x, y = x_tup
+    # x,y = x_tup[:,0], x_tup[:,1]
+    x,y = x_tup
+
+    if nargout <= 1:
+        return ((a-x)**2 + b*(y - x**2)**2, )
+
     return (
         (a-x)**2 + b*(y - x**2)**2,
         np.array((400*x**3 - 400*x*y + 2*x - 2, 200*(y-x**2))),
@@ -85,14 +93,24 @@ def newton_cg(x, fun, data):
     p, status = spsl.cg(H, gx)
     return x - p, data
 
+
+def newton_new(x, fun, data):
+    _, gx, H = fun(x)[:3]
+    # solve Hp = -g
+    p, status = spsl.cg(H, gx)
+    return x - p, data
+
 def test_optimiser(obj_fun, opt_fun, x0):
     x = x0
     data = {}
     print('starting at', x0.tolist())
+    history = [x]
     for i in range(200):
         prev_x = x
         x, data = opt_fun(x, obj_fun, data)
+        history.append(x)
         fx, gx, Hx = obj_fun(x)
+
 
         print(str(i).ljust(3), fx, (gx).tolist(), (x).tolist())
         if np.any(np.isnan(x)):
@@ -101,15 +119,31 @@ def test_optimiser(obj_fun, opt_fun, x0):
         if np.linalg.norm(gx) < 10e-6:
             print('converged???')
             break
+    return history
 
 
 if __name__ == "__main__":
     # obj_fun_lambda = lambda x: parabola(2, x+100000)
     obj_fun_lambda = rosenbrock
-    start_pos = np.array((2, 1))
+    start_pos = np.array([2, 1])
     for opt in (gradient_descent, nesterov_agd, newton_matinv, newton_cg):
         print('optimiser:', opt)
         test_optimiser(obj_fun_lambda, opt, start_pos)
+
+        a = np.linspace(-50, 50, 1000)
+        b = np.linspace(-30, 30, 1000)
+        ex, ey = np.meshgrid(a, b)
+        exy = np.array(list(zip(ex, ey)))
+        # print(ex, ey)
+        # ef = lambdify((x, y), f.func(), "numpy")
+        c = plt.contour(ex, ey, obj_fun_lambda(exy, 1)[0])
+
+        history = test_optimiser(obj_fun_lambda, opt, start_pos)
+        plt.scatter([i[0] for i in history], [i[1] for i in history])
+        plt.plot([i[0] for i in history], [i[1] for i in history])
+
+        plt.show()
+
         print()
         print()
 
