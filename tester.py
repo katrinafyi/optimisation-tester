@@ -14,11 +14,10 @@ import matplotlib.pyplot as plt
 SecondOrderReturn = Tuple[float, np.array, np.array]
 
 def least_squares(A: np.array, b: np.array, x: np.array):
-    ATA = A.transpose() @ A
     return (
         np.sum(np.square(A @ x - b))/2, 
-        ATA @ x - A.transpose() @ b,
-        ATA
+        A.transpose() @ (A@x) - A.transpose() @ b,
+        A.transpose() @ A
     )
 
 def parabola(order: int, x: np.array):
@@ -36,14 +35,11 @@ def exp_x_squared(x):
         None,
     )
 
-def rosenbrock(x_tup, nargout=3):
+def rosenbrock(x_tup):
     a = 1
     b = 100 
     # x,y = x_tup[:,0], x_tup[:,1]
     x,y = x_tup
-
-    if nargout <= 1:
-        return ((a-x)**2 + b*(y - x**2)**2, )
 
     return (
         (a-x)**2 + b*(y - x**2)**2,
@@ -55,7 +51,7 @@ def rosenbrock(x_tup, nargout=3):
     )
 
 def gradient_descent(x, fun, data):
-    alpha = 0.001
+    alpha = 0.000001
     fx, gx = fun(x)[:2]
     return x - alpha * gx, data
 
@@ -94,11 +90,30 @@ def newton_cg(x, fun, data):
     return x - p, data
 
 
-def newton_new(x, fun, data):
-    _, gx, H = fun(x)[:3]
-    # solve Hp = -g
-    p, status = spsl.cg(H, gx)
-    return x - p, data
+def newton_nesterov(x, fun, data):
+    # https://blogs.princeton.edu/imabandit/2013/04/01/acceleratedgradientdescent/
+
+    # x_s = data.get('x_s', np.zeros_like(x))
+    x_s = x
+    y_s = data.get('y_s', np.zeros_like(x))
+    lambda_s_minus_1 = data.get('lambda_s_minus_1', 0)
+
+    lambda_s = (1 + np.sqrt(1 + 4 * lambda_s_minus_1**2)) / 2
+    lambda_s_plus_1 = (1 + np.sqrt(1 + 4 * lambda_s**2)) / 2
+
+    gamma_s = (1-lambda_s) / lambda_s_plus_1
+
+    _, gx, H = fun(x_s)[:3]
+    # print(x_s.shape)
+    # print(H.shape)
+    # print(gx.shape)
+    y_s_plus_1 = x_s - spsl.cg(H, gx)[0]
+    x_s_plus_1 = (1-gamma_s) * y_s_plus_1 + gamma_s * y_s
+    
+    data['y_s'] = y_s_plus_1
+    data['lambda_s_minus_1'] = lambda_s
+
+    return x_s_plus_1, data
 
 def test_optimiser(obj_fun, opt_fun, x0):
     x = x0
@@ -124,25 +139,32 @@ def test_optimiser(obj_fun, opt_fun, x0):
 
 if __name__ == "__main__":
     # obj_fun_lambda = lambda x: parabola(2, x+100000)
+    # obj_fun_lambda = lambda x: parabola(2, x)
     obj_fun_lambda = rosenbrock
-    start_pos = np.array([2, 1])
-    for opt in (gradient_descent, nesterov_agd, newton_matinv, newton_cg):
+
+    # obj_fun_lambda = lambda x: least_squares(
+    #     np.array(((1, 2, 3), (10, 31, 21), (12, 41, 21))),
+    #     np.array((10, 20, 30)),
+    #     x)
+    start_pos = np.array([200, 10])
+    # (gradient_descent, nesterov_agd, newton_matinv, newton_cg)
+    for opt in (gradient_descent, newton_matinv, newton_cg, newton_nesterov):
         print('optimiser:', opt)
         test_optimiser(obj_fun_lambda, opt, start_pos)
 
-        a = np.linspace(-50, 50, 1000)
-        b = np.linspace(-30, 30, 1000)
-        ex, ey = np.meshgrid(a, b)
-        exy = np.array(list(zip(ex, ey)))
-        # print(ex, ey)
-        # ef = lambdify((x, y), f.func(), "numpy")
-        c = plt.contour(ex, ey, obj_fun_lambda(exy, 1)[0])
+        # a = np.linspace(-50, 50, 1000)
+        # b = np.linspace(-30, 30, 1000)
+        # ex, ey = np.meshgrid(a, b)
+        # exy = np.array(list(zip(ex, ey)))
+        # # print(ex, ey)
+        # # ef = lambdify((x, y), f.func(), "numpy")
+        # c = plt.contour(ex, ey, obj_fun_lambda(exy, 1)[0])
 
-        history = test_optimiser(obj_fun_lambda, opt, start_pos)
-        plt.scatter([i[0] for i in history], [i[1] for i in history])
-        plt.plot([i[0] for i in history], [i[1] for i in history])
+        # history = test_optimiser(obj_fun_lambda, opt, start_pos)
+        # plt.scatter([i[0] for i in history], [i[1] for i in history])
+        # plt.plot([i[0] for i in history], [i[1] for i in history])
 
-        plt.show()
+        # plt.show()
 
         print()
         print()
