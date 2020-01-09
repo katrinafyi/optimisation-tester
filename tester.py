@@ -13,6 +13,49 @@ import matplotlib.pyplot as plt
 
 SecondOrderReturn = Tuple[float, np.array, np.array]
 
+a2a_train_A = None 
+a2a_train_b = None
+a2a_test_A = None
+a2a_test_b = None
+
+def _load_single(file_path):
+    A = []
+    b = []
+    num_feat = 123
+    with open(file_path) as f:
+        for l in f:
+            l = l.strip().split()
+            b.append(0 if int(l[0]) < 0 else 1)
+
+            x = [0] * num_feat
+            for feat in l[1:]:
+                x[int(feat.split(':')[0])-1] = 1
+            A.append(x)
+    return np.array(A), np.array(b)
+
+def _load_a2a():
+    global a2a_train_A, a2a_train_b, a2a_test_A, a2a_test_b
+
+    a2a_train_A, a2a_train_b = _load_single('data/a2a.txt')
+    a2a_test_A, a2a_test_b = _load_single('data/a2a.t.txt')
+
+phi = lambda x: np.log(1 + np.exp(x))
+dphi = lambda x: np.divide(1, (1 + np.exp(-x)))
+ddphi = lambda x: np.divide(np.exp(x), (1 + np.exp(x))**2)
+
+def logistic(A, b, x):
+    Ax = A @ x # % cache for speed
+
+    #% compute the function value at x
+    fx = np.sum(phi(Ax)) - np.dot(b, Ax);
+
+    #% dphi(Ax) is a n*1 vector of dphi(dot(ai, x))
+    grad = A.transpose() @ (dphi(Ax) - b);
+    #% ddphi(Ax) is a n*1 vector of ddphi(dot(ai, x)).
+    H = A.transpose() @ np.diag(ddphi(Ax)) @ A;
+    #H = @(y) A' * (ddphi(Ax) .* (A*y));
+    return fx, grad, H
+
 def least_squares(A: np.array, b: np.array, x: np.array):
     return (
         np.sum(np.square(A @ x - b))/2, 
@@ -58,7 +101,7 @@ def gradient_descent(x, fun, data):
 
 def nesterov_agd(x, fun, data):
     # https://blogs.princeton.edu/imabandit/2013/04/01/acceleratedgradientdescent/
-    beta = 4
+    beta = 10
 
     # x_s = data.get('x_s', np.zeros_like(x))
     x_s = x
@@ -127,13 +170,15 @@ def test_optimiser(obj_fun, opt_fun, x0):
         fx, gx, Hx = obj_fun(x)
 
 
-        print(str(i).ljust(3), fx, (gx).tolist(), (x).tolist())
+        # print(str(i).ljust(3), fx, (gx).tolist(), (x).tolist())
+        print(str(i).ljust(3), fx)
         if np.any(np.isnan(x)):
             print('error: NaN')
             break
         if np.linalg.norm(gx) < 10e-6:
             print('converged???')
             break
+    print(x)
     return history
 
 
@@ -146,11 +191,19 @@ if __name__ == "__main__":
     #     np.array(((1, 2, 3), (10, 31, 21), (12, 41, 21))),
     #     np.array((10, 20, 30)),
     #     x)
-    start_pos = np.array([200, 10])
     # (gradient_descent, nesterov_agd, newton_matinv, newton_cg)
-    for opt in (gradient_descent, newton_matinv, newton_cg, newton_nesterov):
+
+    _load_a2a()
+
+    obj_fun_lambda = lambda x: logistic(a2a_train_A, a2a_train_b, x)
+    start_pos = np.array([0] * 123)
+
+    for opt in (nesterov_agd, newton_cg):
         print('optimiser:', opt)
-        test_optimiser(obj_fun_lambda, opt, start_pos)
+        try:
+            test_optimiser(obj_fun_lambda, opt, start_pos)
+        except KeyboardInterrupt:
+            print('interrupted...')
 
         # a = np.linspace(-50, 50, 1000)
         # b = np.linspace(-30, 30, 1000)
